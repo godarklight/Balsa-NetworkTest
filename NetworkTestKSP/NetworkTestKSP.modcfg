@@ -1,0 +1,13 @@
+ModCFG
+{
+    title = NetworkTestKSP
+    author = godarklight
+    modVersion = 0.1.0
+    Plugin
+    {
+        name = NetworkTestKSP
+        description = Network data in and out!
+        asmpath = Addons\NetworkTestKSP\NetworkTestKSP.dll
+        order = 100
+    }
+} 
