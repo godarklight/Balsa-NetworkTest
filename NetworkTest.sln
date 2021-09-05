@@ -5,8 +5,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetworkTest", "NetworkTest\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetworkTestKSP", "NetworkTestKSP\NetworkTestKSP.csproj", "{48D41645-F177-42A3-8696-4CEF057EE295}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetworkTestConsoleClient", "NetworkTestConsoleClient\NetworkTestConsoleClient.csproj", "{4482B445-F933-41EA-8AF3-2F422DAE36B7}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetworkTestConsoleServer", "NetworkTestConsoleServer\NetworkTestConsoleServer.csproj", "{F5738058-6B79-4E18-BE01-212DA1CC35AC}"
 EndProject
 Global
@@ -23,13 +21,9 @@ Global
 		{48D41645-F177-42A3-8696-4CEF057EE295}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{48D41645-F177-42A3-8696-4CEF057EE295}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{48D41645-F177-42A3-8696-4CEF057EE295}.Release|Any CPU.Build.0 = Release|Any CPU
-		{4482B445-F933-41EA-8AF3-2F422DAE36B7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{4482B445-F933-41EA-8AF3-2F422DAE36B7}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{4482B445-F933-41EA-8AF3-2F422DAE36B7}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{4482B445-F933-41EA-8AF3-2F422DAE36B7}.Release|Any CPU.Build.0 = Release|Any CPU
 		{F5738058-6B79-4E18-BE01-212DA1CC35AC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{F5738058-6B79-4E18-BE01-212DA1CC35AC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F5738058-6B79-4E18-BE01-212DA1CC35AC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F5738058-6B79-4E18-BE01-212DA1CC35AC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F5738058-6B79-4E18-BE01-212DA1CC35AC}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

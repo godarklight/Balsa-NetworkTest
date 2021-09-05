@@ -5,13 +5,15 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Reflection;
-using NetworkTest.Messages;
 
 namespace NetworkTest
 {
     public class NetworkHandler
     {
         private Action<string> log;
+
+        //Mavlink
+        private MAVLink.MavlinkParse parser = new MAVLink.MavlinkParse();
 
         //Network components
         private ConcurrentBag<ClientObject> clients = new ConcurrentBag<ClientObject>();
@@ -20,41 +22,29 @@ namespace NetworkTest
         private AutoResetEvent sendEvent = new AutoResetEvent(false);
         private TcpListener listener;
 
-        //Auto serialization/deserialization
-        private Dictionary<MessageType, Type> messageTypes = new Dictionary<MessageType, Type>();
-        private Dictionary<Type, MessageType> messageTypesRev = new Dictionary<Type, MessageType>();
-
         //Callbacks
         private Action<ClientObject> connectCallback;
-        private Dictionary<MessageType, Action<ClientObject, IMessage>> receiveCallbacks = new Dictionary<MessageType, Action<ClientObject, IMessage>>();
-        private Dictionary<MessageType, Func<ClientObject, IMessage>> sendCallbacks = new Dictionary<MessageType, Func<ClientObject, IMessage>>();
+        private Dictionary<MAVLink.MAVLINK_MSG_ID, Action<ClientObject, MAVLink.MAVLinkMessage>> receiveCallbacks = new Dictionary<MAVLink.MAVLINK_MSG_ID, Action<ClientObject, MAVLink.MAVLinkMessage>>();
+        private Dictionary<MAVLink.MAV_CMD, Action<ClientObject, MAVLink.mavlink_command_long_t>> receiveCommandCallbacks = new Dictionary<MAVLink.MAV_CMD, Action<ClientObject, MAVLink.mavlink_command_long_t>>();
+        private Dictionary<MAVLink.MAVLINK_MSG_ID, Action<ClientObject>> sendCallbacks = new Dictionary<MAVLink.MAVLINK_MSG_ID, Action<ClientObject>>();
         private Action<ClientObject> disconnectCallback;
+
+        //Unprocessed callbacks
+        private Action<ClientObject, MAVLink.MAVLinkMessage> unprocessedMessageCallback;
+        private Action<ClientObject, MAVLink.mavlink_command_long_t> unprocessedCommandCallback;
+
+        //Generator
+        private Dictionary<Type, MAVLink.MAVLINK_MSG_ID> typeMapping = new Dictionary<Type, MAVLink.MAVLINK_MSG_ID>();
 
         private bool running = true;
 
         public void StartServer(Action<string> log)
         {
             this.log = log;
-            PopulateMessageTypes();
-            listener = new TcpListener(new IPEndPoint(IPAddress.Any, 12345));
+            listener = new TcpListener(new IPEndPoint(IPAddress.Any, 5760));
             listener.Start();
             listener.BeginAcceptSocket(HandleConnect, listener);
             Start();
-        }
-
-        public ClientObject StartClient(Action<string> log, TcpClient client)
-        {
-            this.log = log;
-            PopulateMessageTypes();
-            ClientObject clientObject = new ClientObject(this, sendEvent, log, RequestMessage);
-            clientObject.client = client;
-            clients.Add(clientObject);
-            Start();
-            if (connectCallback != null)
-            {
-                connectCallback(clientObject);
-            }
-            return clientObject;
         }
 
         private void Start()
@@ -86,38 +76,37 @@ namespace NetworkTest
             disconnectCallback = callback;
         }
 
-        public void RegisterReceive(MessageType messageType, Action<ClientObject, IMessage> callback)
+        public void RegisterUnprocessedMessage(Action<ClientObject, MAVLink.MAVLinkMessage> callback)
+        {
+            unprocessedMessageCallback = callback;
+        }
+
+        public void RegisterUnprocessedCommand(Action<ClientObject, MAVLink.mavlink_command_long_t> callback)
+        {
+            unprocessedCommandCallback = callback;
+        }
+
+        public void RegisterReceive(MAVLink.MAVLINK_MSG_ID messageType, Action<ClientObject, MAVLink.MAVLinkMessage> callback)
         {
             receiveCallbacks[messageType] = callback;
         }
 
-        public void RegisterSend(MessageType messageType, Func<ClientObject, IMessage> callback)
+        public void RegisterReceiveCommand(MAVLink.MAV_CMD commandType, Action<ClientObject, MAVLink.mavlink_command_long_t> callback)
+        {
+            receiveCommandCallbacks[commandType] = callback;
+        }
+
+        public void RegisterSend(MAVLink.MAVLINK_MSG_ID messageType, Action<ClientObject> callback)
         {
             sendCallbacks[messageType] = callback;
         }
 
-        private IMessage RequestMessage(ClientObject client, MessageType messageType)
+
+        private void RequestMessage(ClientObject client, MAVLink.MAVLINK_MSG_ID messageType)
         {
             if (sendCallbacks.ContainsKey(messageType))
             {
-                return sendCallbacks[messageType](client);
-            }
-            return null;
-        }
-
-        private void PopulateMessageTypes()
-        {
-            messageTypes.Clear();
-            messageTypesRev.Clear();
-            Assembly networkTest = Assembly.GetExecutingAssembly();
-            foreach (Type t in networkTest.GetExportedTypes())
-            {
-                MessageAttribute messageAttribute = t.GetCustomAttribute<MessageAttribute>();
-                if (messageAttribute != null)
-                {
-                    messageTypes.Add(messageAttribute.type, t);
-                    messageTypesRev.Add(t, messageAttribute.type);
-                }
+                sendCallbacks[messageType](client);
             }
         }
 
@@ -127,7 +116,7 @@ namespace NetworkTest
             {
                 ClientObject client = new ClientObject(this, sendEvent, log, RequestMessage);
                 client.client = listener.EndAcceptTcpClient(ar);
-                client.requestedRates[MessageType.HEARTBEAT] = 1f;
+                client.requestedRates[MAVLink.MAVLINK_MSG_ID.HEARTBEAT] = 1f;
                 clients.Add(client);
                 if (connectCallback != null)
                 {
@@ -214,12 +203,8 @@ namespace NetworkTest
                                 client.bytesLeft = client.buffer[1];
                                 if (client.bytesLeft == 0)
                                 {
-                                    MessageType type = (MessageType)client.buffer[5];
-                                    IMessage message = (IMessage)Activator.CreateInstance(messageTypes[type]);
-                                    if (receiveCallbacks.ContainsKey(type))
-                                    {
-                                        receiveCallbacks[type](client, message);
-                                    }
+                                    MAVLink.MAVLinkMessage message = new MAVLink.MAVLinkMessage(client.buffer);
+                                    ProcessMessage(client, message);
                                     client.readingHeader = true;
                                     client.readPos = 0;
                                     client.bytesLeft = 8;
@@ -232,22 +217,50 @@ namespace NetworkTest
                             else
                             {
                                 //Process messages with payloads
-                                MessageType type = (MessageType)client.buffer[5];
-                                int length = client.buffer[1];
-                                IMessage message = (IMessage)Activator.CreateInstance(messageTypes[type]);
-                                byte[] payload = new byte[length];
-                                Array.Copy(client.buffer, 6, payload, 0, length);
-                                message.Deserialize(payload);
-                                if (receiveCallbacks.ContainsKey(type))
-                                {
-                                    receiveCallbacks[type](client, message);
-                                }
+                                MAVLink.MAVLinkMessage message = new MAVLink.MAVLinkMessage(client.buffer);
+                                ProcessMessage(client, message);
                                 client.readingHeader = true;
                                 client.readPos = 0;
                                 client.bytesLeft = 8;
                             }
                         }
                     }
+                }
+            }
+        }
+
+        private void ProcessMessage(ClientObject client, MAVLink.MAVLinkMessage message)
+        {
+            bool processed = false;
+            if (message.msgid == (uint)MAVLink.MAVLINK_MSG_ID.COMMAND_LONG)
+            {
+                processed = true;
+                MAVLink.mavlink_command_long_t command = (MAVLink.mavlink_command_long_t)message.data;
+                if (receiveCommandCallbacks.ContainsKey((MAVLink.MAV_CMD)command.command))
+                {
+
+                }
+                else
+                {
+                    if (unprocessedCommandCallback != null)
+                    {
+                        unprocessedCommandCallback(client, command);
+                    }
+                }
+            }
+            if (!processed)
+            {
+                if (receiveCallbacks.ContainsKey((MAVLink.MAVLINK_MSG_ID)message.msgid))
+                {
+                    processed = true;
+                    receiveCallbacks[(MAVLink.MAVLINK_MSG_ID)message.msgid](client, message);
+                }
+            }
+            if (!processed)
+            {
+                if (unprocessedMessageCallback != null)
+                {
+                    unprocessedMessageCallback(client, message);
                 }
             }
         }
@@ -279,25 +292,11 @@ namespace NetworkTest
                     }
                     else
                     {
-                        while (client.outgoingMessages.TryDequeue(out IMessage sendMessage))
+                        while (client.outgoingMessages.TryDequeue(out byte[] sendMessage))
                         {
-                            //Add header
-                            byte[] sendMessageBytes;
-                            byte[] payload = sendMessage.Serialize();
-                            if (payload == null)
-                            {
-                                sendMessageBytes = new byte[8];
-                            }
-                            else
-                            {
-                                sendMessageBytes = new byte[8 + payload.Length];
-                                sendMessageBytes[1] = (byte)payload.Length;
-                                payload.CopyTo(sendMessageBytes, 6);
-                            }
-                            sendMessageBytes[5] = (byte)messageTypesRev[sendMessage.GetType()];
                             try
                             {
-                                client.client.GetStream().Write(sendMessageBytes, 0, sendMessageBytes.Length);
+                                client.client.GetStream().Write(sendMessage, 0, sendMessage.Length);
                             }
                             catch
                             {

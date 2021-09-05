@@ -6,8 +6,8 @@ namespace NetworkTestKSP
         public float pitch;
         public float roll;
         public float yaw;
-        public float latitude;
-        public float longitude;
-        public float altitude;
+        public int latitude;
+        public int longitude;
+        public int altitude;
     }
 }

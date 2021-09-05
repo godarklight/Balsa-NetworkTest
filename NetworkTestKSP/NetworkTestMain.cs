@@ -21,10 +21,10 @@ namespace NetworkTestKSP
             protocol = new ProtocolLogic(data, log);
             hander = new NetworkHandler();
             hander.RegisterConnect(protocol.ConnectEvent);
-            hander.RegisterReceive(MessageType.SET_RATE, protocol.ReceiveSetRate);
-            hander.RegisterSend(MessageType.HEARTBEAT, protocol.SendHeartbeat);
-            hander.RegisterSend(MessageType.ATTITUDE, protocol.SendAttitude);
-            hander.RegisterSend(MessageType.POSITION, protocol.SendPosition);
+            //hander.RegisterReceive(MAVLink.MAVLINK_MSG_ID.SET_RATE, protocol.ReceiveSetRate);
+            hander.RegisterSend(MAVLink.MAVLINK_MSG_ID.HEARTBEAT, protocol.SendHeartbeat);
+            hander.RegisterSend(MAVLink.MAVLINK_MSG_ID.ATTITUDE, protocol.SendAttitude);
+            //hander.RegisterSend(MAVLink.MAVLINK_MSG_ID.POSITION, protocol.SendPosition);
             hander.RegisterDisconnect(protocol.DisconnectEvent);
             hander.StartServer(log.Log);
             DontDestroyOnLoad(this);
@@ -46,10 +46,12 @@ namespace NetworkTestKSP
             data.pitch = FSControlUtil.GetVehiclePitch(v) * Mathf.Rad2Deg;
             data.roll = FSControlUtil.GetVehicleRoll(v) * Mathf.Rad2Deg;
             data.yaw = v.Physics.HeadingDegs;
-            //YUp
-            data.latitude = (float)FloatingOrigin.GetAbsoluteWPos(v.transform.position).x;
-            data.longitude = (float)FloatingOrigin.GetAbsoluteWPos(v.transform.position).z;
-            data.altitude = (float)FloatingOrigin.GetAbsoluteWPos(v.transform.position).y;
+            //Balsa is YUp
+            //Mavlink is degE7, 1° = 111 km 1E7/111000 = ~90
+            data.latitude = (int)(FloatingOrigin.GetAbsoluteWPos(v.transform.position).x / 90d);
+            data.longitude = (int)(FloatingOrigin.GetAbsoluteWPos(v.transform.position).z / 90d);
+            //Metres -> mm
+            data.altitude = (int)(FloatingOrigin.GetAbsoluteWPos(v.transform.position).y * 1000d);
         }
     }
 }

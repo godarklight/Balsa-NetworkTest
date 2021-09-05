@@ -1,30 +1,82 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Text;
 using NetworkTest;
-using NetworkTest.Messages;
 
 namespace NetworkTestConsoleServer
 {
     class MainClass
     {
+        private static List<Parameter> parameters = new List<Parameter>();
+
         //This could be another object...
-        private static float latitude = 0.1f;
-        private static float longitude = 0.2f;
-        private static float altitude = 0.3f;
+        private static int latitude = 100;
+        private static int longitude = 200;
+        private static int altitude = 300;
         private static float pitch = 0.4f;
         private static float roll = 0.5f;
         private static float yaw = 0.6f;
+        private static long startTime;
 
         public static void Main(string[] args)
         {
+            startTime = DateTime.UtcNow.Ticks;
+            //TODO: Set these to sane values perhaps?
+            parameters.Add(new Parameter("RCMAP_ROLL", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("RCMAP_PITCH", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("RCMAP_YAW", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("RCMAP_THROTTLE", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("RC0_MIN", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("RC0_MAX", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("RC0_TRIM", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("COMPASS_DEV_ID", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("COMPASS_DEV_ID2", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("COMPASS_DEV_ID3", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("INS_ACCOFFS_X", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("INS_ACCOFFS_Y", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("INS_ACCOFFS_Z", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("FLTMODE6", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("FLTMODE5", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("FLTMODE4", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("FLTMODE3", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("FLTMODE2", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("FLTMODE1", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("COMPASS_OFS_X", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("COMPASS_OFS_Y", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("COMPASS_OFS_Z", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("COMPASS_OFS2_X", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("COMPASS_OFS2_Y", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("COMPASS_OFS2_Z", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("COMPASS_OFS3_X", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("COMPASS_OFS3_Y", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("COMPASS_OFS3_Z", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("COMPASS_DEC", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("BATT_MONITOR", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("ARMING_CHECK", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("MNT_RC_IN_ROLL", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("MNT_RC_IN_PAN", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("MNT_RC_IN_TILT", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+            parameters.Add(new Parameter("AHRS_ORIENTATION", 0f, MAVLink.MAV_PARAM_TYPE.UINT8));
+
             NetworkHandler handler = new NetworkHandler();
             handler.RegisterConnect(HandleConnect);
             handler.RegisterDisconnect(HandleDisconnect);
-            handler.RegisterReceive(MessageType.HEARTBEAT, HeartbeatMessage);
-            handler.RegisterReceive(MessageType.SET_RATE, SetRateMessage);
-            handler.RegisterSend(MessageType.HEARTBEAT, SendHeartbeat);
-            handler.RegisterSend(MessageType.POSITION, SendPosition);
-            handler.RegisterSend(MessageType.ATTITUDE, SendAttitude);
+            handler.RegisterUnprocessedMessage(HandleUnprocessedMessage);
+            handler.RegisterUnprocessedCommand(HandleUnprocessedCommand);
+            handler.RegisterReceive(MAVLink.MAVLINK_MSG_ID.HEARTBEAT, Heartbeat);
+            handler.RegisterReceive(MAVLink.MAVLINK_MSG_ID.PARAM_REQUEST_LIST, ParamRequestList);
+            handler.RegisterReceive(MAVLink.MAVLINK_MSG_ID.REQUEST_DATA_STREAM, RequestDataStream);
+            handler.RegisterReceive(MAVLink.MAVLINK_MSG_ID.SYSTEM_TIME, SystemTime);
+            handler.RegisterReceiveCommand(MAVLink.MAV_CMD.REQUEST_AUTOPILOT_CAPABILITIES, RequestAutopilot);
+            handler.RegisterReceiveCommand(MAVLink.MAV_CMD.REQUEST_PROTOCOL_VERSION, RequestProtocolVersion);
+            handler.RegisterReceiveCommand(MAVLink.MAV_CMD.SET_MESSAGE_INTERVAL, MessageInterval);
+            handler.RegisterSend(MAVLink.MAVLINK_MSG_ID.HEARTBEAT, SendHeartbeat);
+            handler.RegisterSend(MAVLink.MAVLINK_MSG_ID.GLOBAL_POSITION_INT, SendPosition);
+            handler.RegisterSend(MAVLink.MAVLINK_MSG_ID.ATTITUDE, SendAttitude);
+            handler.RegisterSend(MAVLink.MAVLINK_MSG_ID.RAW_IMU, SendRawIMU);
+            handler.RegisterSend(MAVLink.MAVLINK_MSG_ID.GPS_STATUS, SendGPSStatus);
             handler.StartServer(Console.WriteLine);
+
             bool running = true;
             while (running)
             {
@@ -36,9 +88,9 @@ namespace NetworkTestConsoleServer
                     if (split[0] == "pos")
                     {
                         processed = true;
-                        latitude = float.Parse(split[1]);
-                        longitude = float.Parse(split[2]);
-                        altitude = float.Parse(split[3]);
+                        latitude = int.Parse(split[1]);
+                        longitude = int.Parse(split[2]);
+                        altitude = int.Parse(split[3]);
                     }
                     if (split[0] == "att")
                     {
@@ -61,6 +113,16 @@ namespace NetworkTestConsoleServer
             handler.Stop();
         }
 
+        private static void HandleUnprocessedMessage(ClientObject client, MAVLink.MAVLinkMessage message)
+        {
+            Console.WriteLine($"UNPROCESSED: {message.msgtypename}");
+        }
+
+        private static void HandleUnprocessedCommand(ClientObject client, MAVLink.mavlink_command_long_t command)
+        {
+            Console.WriteLine($"UNPROCESSED COMMAND: {(MAVLink.MAV_CMD)command.command}");
+        }
+
         private static void HandleConnect(ClientObject client)
         {
             Console.WriteLine("CONNECT");
@@ -71,43 +133,261 @@ namespace NetworkTestConsoleServer
             Console.WriteLine("DISCONNECT");
         }
 
-        private static void HeartbeatMessage(ClientObject client, IMessage messageRaw)
+        private static void Heartbeat(ClientObject client, MAVLink.MAVLinkMessage messageRaw)
         {
             Console.WriteLine("HEARTBEAT");
         }
 
-        private static void SetRateMessage(ClientObject client, IMessage messageRaw)
+        private static void ParamRequestList(ClientObject client, MAVLink.MAVLinkMessage messageRaw)
         {
-            SetRate message = messageRaw as SetRate;
-            Console.WriteLine($"SET_RATE {message.messageType} {message.rate}");
-            client.requestedRates[message.messageType] = message.rate;
-            Ack ackMessage = new Ack();
-            ackMessage.messageType = message.messageType;
-            client.SendMessage(ackMessage);
+            Console.WriteLine("PARAM_REQUEST_LIST");
+            MAVLink.mavlink_param_request_list_t message = (MAVLink.mavlink_param_request_list_t)messageRaw.data;
+            for (int i = 0; i < parameters.Count; i++)
+            {
+                Parameter p = parameters[i];
+                MAVLink.mavlink_param_value_t sendMessage = new MAVLink.mavlink_param_value_t();
+                sendMessage.param_id = p.GetIDBytes();
+                sendMessage.param_type = (byte)p.type;
+                sendMessage.param_value = p.value;
+                sendMessage.param_count = (ushort)parameters.Count;
+                sendMessage.param_index = (ushort)i;
+                client.SendMessage(sendMessage);
+            }
         }
 
-        private static IMessage SendHeartbeat(ClientObject client)
+        private static void RequestDataStream(ClientObject client, MAVLink.MAVLinkMessage messageRaw)
         {
-            Heartbeat message = new Heartbeat();
-            return message;
+            //TODO: Implement ALL of these.
+            MAVLink.mavlink_request_data_stream_t message = (MAVLink.mavlink_request_data_stream_t)messageRaw.data;
+            Console.WriteLine($"REQUEST_DATA_STREAM {message.req_stream_id} = {message.req_message_rate}");
+            switch ((MAVLink.MAV_DATA_STREAM)message.req_stream_id)
+            {
+                case MAVLink.MAV_DATA_STREAM.ALL:
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.RAW_IMU] = 1f / message.req_message_rate;
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.GPS_RAW_INT] = 1f / message.req_message_rate;
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.GPS_STATUS] = 1f / message.req_message_rate;
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.RC_CHANNELS_SCALED] = 1f / message.req_message_rate;
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.RC_CHANNELS_RAW] = 1f / message.req_message_rate;
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.SERVO_OUTPUT_RAW] = 1f / message.req_message_rate;
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.GLOBAL_POSITION_INT] = 1f / message.req_message_rate;
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.LOCAL_POSITION_NED] = 1f / message.req_message_rate;
+                    break;
+                case MAVLink.MAV_DATA_STREAM.RAW_SENSORS:
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.RAW_IMU] = 1f / message.req_message_rate;
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.GPS_RAW_INT] = 1f / message.req_message_rate;
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.GPS_STATUS] = 1f / message.req_message_rate;
+                    break;
+                case MAVLink.MAV_DATA_STREAM.EXTENDED_STATUS:
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.GPS_STATUS] = 1f / message.req_message_rate;
+                    //Can't find CONTROL_STATUS or AUX_STATUS
+                    break;
+                case MAVLink.MAV_DATA_STREAM.RC_CHANNELS:
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.RC_CHANNELS_SCALED] = 1f / message.req_message_rate;
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.RC_CHANNELS_RAW] = 1f / message.req_message_rate;
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.SERVO_OUTPUT_RAW] = 1f / message.req_message_rate;
+                    break;
+                case MAVLink.MAV_DATA_STREAM.RAW_CONTROLLER:
+                    //Can't find these messages
+                    break;
+                case MAVLink.MAV_DATA_STREAM.POSITION:
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.GLOBAL_POSITION_INT] = 1f / message.req_message_rate;
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.LOCAL_POSITION_NED] = 1f / message.req_message_rate;
+                    //Can't find GLOBAL_POSITION
+                    break;
+                case MAVLink.MAV_DATA_STREAM.EXTRA1:
+                    break;
+                case MAVLink.MAV_DATA_STREAM.EXTRA2:
+                    break;
+                case MAVLink.MAV_DATA_STREAM.EXTRA3:
+                    break;
+            }
         }
 
-        private static IMessage SendAttitude(ClientObject client)
+        private static void SystemTime(ClientObject client, MAVLink.MAVLinkMessage messageRaw)
         {
-            Attitude message = new Attitude();
+            MAVLink.mavlink_system_time_t message = (MAVLink.mavlink_system_time_t)messageRaw.data;
+            Console.WriteLine($"SYSTEM_TIME {message.time_unix_usec}");
+        }
+
+            private static void RequestProtocolVersion(ClientObject client, MAVLink.mavlink_command_long_t command)
+        {
+            AckCommand(client, command, MAVLink.MAV_CMD_ACK.ERR_FAIL);
+            Console.WriteLine($"REQUEST_PROTOCOL_VERSION, FAILED, NO MAVLINK2");
+        }
+
+        private static void MessageInterval(ClientObject client, MAVLink.mavlink_command_long_t command)
+        {
+            AckCommand(client, command, MAVLink.MAV_CMD_ACK.OK);
+            Console.WriteLine($"SET_MESSAGE_INTERVAL: {(MAVLink.MAVLINK_MSG_ID)command.param1} = {command.param2}");
+            client.requestedRates[(MAVLink.MAVLINK_MSG_ID)command.param1] = command.param1 * 1000000;
+        }
+
+        private static void RequestAutopilot(ClientObject client, MAVLink.mavlink_command_long_t command)
+        {
+            Console.WriteLine("REQUEST AUTOPILOT");
+            AckCommand(client, command, MAVLink.MAV_CMD_ACK.OK);
+            MAVLink.mavlink_autopilot_version_t autopilot = new MAVLink.mavlink_autopilot_version_t();
+            autopilot.capabilities = autopilot.capabilities | (ulong)MAVLink.MAV_PROTOCOL_CAPABILITY.MISSION_FLOAT;
+            autopilot.capabilities = autopilot.capabilities | (ulong)MAVLink.MAV_PROTOCOL_CAPABILITY.PARAM_FLOAT;
+            autopilot.capabilities = autopilot.capabilities | (ulong)MAVLink.MAV_PROTOCOL_CAPABILITY.COMMAND_INT;
+            autopilot.board_version = 1;
+            autopilot.flight_sw_version = 1;
+            autopilot.os_sw_version = 1;
+            byte[] emptyByte = new byte[8];
+            autopilot.flight_custom_version = emptyByte;
+            autopilot.middleware_custom_version = emptyByte;
+            autopilot.os_custom_version = emptyByte;
+            autopilot.product_id = 0;
+            autopilot.vendor_id = 0;
+            autopilot.uid = 1;
+            client.SendMessage(autopilot);
+        }
+
+        private static void SendHeartbeat(ClientObject client)
+        {
+            MAVLink.mavlink_heartbeat_t message = new MAVLink.mavlink_heartbeat_t();
+            message.custom_mode = 0;
+            message.type = (byte)MAVLink.MAV_TYPE.FIXED_WING;
+            message.autopilot = (byte)MAVLink.MAV_AUTOPILOT.ARDUPILOTMEGA;
+            message.base_mode = (byte)MAVLink.MAV_MODE.AUTO_ARMED;
+            message.system_status = (byte)MAVLink.MAV_STATE.ACTIVE;
+            message.mavlink_version = (byte)MAVLink.MAVLINK_VERSION;
+            client.SendMessage(message);
+
+
+            uint sensors = (uint)(MAVLink.MAV_SYS_STATUS_SENSOR._3D_GYRO | MAVLink.MAV_SYS_STATUS_SENSOR._3D_ACCEL | MAVLink.MAV_SYS_STATUS_SENSOR._3D_MAG | MAVLink.MAV_SYS_STATUS_SENSOR.ABSOLUTE_PRESSURE | MAVLink.MAV_SYS_STATUS_SENSOR.BATTERY | MAVLink.MAV_SYS_STATUS_SENSOR.GPS);
+            MAVLink.mavlink_sys_status_t sysStatus = new MAVLink.mavlink_sys_status_t();
+            sysStatus.onboard_control_sensors_present = sensors;
+            sysStatus.onboard_control_sensors_enabled = sensors;
+            sysStatus.onboard_control_sensors_health = sensors;
+            //1%
+            sysStatus.load = 100;
+            sysStatus.voltage_battery = 11000;
+            sysStatus.current_battery = 1000;
+            client.SendMessage(sysStatus);
+        }
+
+        private static void SendAttitude(ClientObject client)
+        {
+            MAVLink.mavlink_attitude_t message = new MAVLink.mavlink_attitude_t();
             message.pitch = pitch;
             message.roll = roll;
             message.yaw = yaw;
-            return message;
+            message.pitchspeed = 0;
+            message.rollspeed = 0;
+            message.yawspeed = 0;
+            message.time_boot_ms = GetUptime();
+            client.SendMessage(message);
         }
 
-        private static IMessage SendPosition(ClientObject client)
+        private static void SendPosition(ClientObject client)
         {
-            Position message = new Position();
-            message.latitude = latitude;
-            message.longitude = longitude;
-            message.altitude = altitude;
-            return message;
+            MAVLink.mavlink_global_position_int_t message = new MAVLink.mavlink_global_position_int_t();
+            message.lat = latitude;
+            message.lon = longitude;
+            message.alt = altitude;
+            message.relative_alt = altitude;
+            message.hdg = 0;
+            message.vx = 0;
+            message.vy = 0;
+            message.vz = 0;
+            message.time_boot_ms = GetUptime();
+            client.SendMessage(message);
+        }
+
+        private static void SendRawIMU(ClientObject client)
+        {
+            MAVLink.mavlink_raw_imu_t message = new MAVLink.mavlink_raw_imu_t();
+            DateTime epoch = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
+            TimeSpan diff = DateTime.UtcNow - epoch;
+            message.time_usec = (ulong)(diff.TotalMilliseconds * 1000);
+            message.xacc = 0;
+            message.yacc = 0;
+            message.zacc = 0;
+            message.xgyro = 0;
+            message.ygyro = 0;
+            message.zgyro = 0;
+            message.xmag = 0;
+            message.ymag = 0;
+            message.zmag = 0;
+            message.id = 0;
+            message.temperature = 6000;
+            client.SendMessage(message);
+        }
+
+        private static void SendGPSStatus(ClientObject client)
+        {
+            MAVLink.mavlink_gps_status_t message = new MAVLink.mavlink_gps_status_t();
+            message.satellites_visible = 10;
+            byte[] prn = new byte[20];
+            byte[] used = new byte[20];
+            byte[] ele = new byte[20];
+            byte[] azi = new byte[20];
+            byte[] snr = new byte[20];
+            for (int i = 0; i < 10; i++)
+            {
+                prn[i] = (byte)(i + 1);
+                if (i <= 8)
+                {
+                    used[i] = 1;
+                }
+                ele[i] = (byte)(45 + i * 2);
+                azi[i] = (byte)(i * 20);
+                snr[i] = (byte)(30 + i);
+            }
+            message.satellite_prn = prn;
+            message.satellite_used = used;
+            message.satellite_elevation = ele;
+            message.satellite_azimuth = azi;
+            message.satellite_snr = snr;
+            client.SendMessage(message);
+        }
+
+        private static void AckCommand(ClientObject client, MAVLink.mavlink_command_long_t command, MAVLink.MAV_CMD_ACK ackType)
+        {
+            MAVLink.mavlink_command_ack_t ack = new MAVLink.mavlink_command_ack_t();
+            ack.command = command.command;
+            ack.result = (byte)ackType;
+            ack.target_system = command.target_system;
+            ack.target_component = command.target_component;
+        }
+
+        private static void SetParameter(ClientObject client, string id, float value, MAVLink.MAV_PARAM_TYPE type)
+        {
+            Parameter p = null;
+            bool add = true;
+            int sendID = -1;
+            for (int i = 0; i < parameters.Count; i++)
+            {
+
+                if (parameters[i].id == id)
+                {
+                    p = parameters[i];
+                    p.value = value;
+                    p.type = type;
+                    add = false;
+                    sendID = i;
+                }
+            }
+            if (add)
+            {
+                p = new Parameter(id, value, type);
+                parameters.Add(p);
+                sendID = parameters.Count - 1;
+            }
+            MAVLink.mavlink_param_value_t sendMessage = new MAVLink.mavlink_param_value_t();
+            sendMessage.param_id = p.GetIDBytes();
+            sendMessage.param_type = (byte)p.type;
+            sendMessage.param_value = p.value;
+            sendMessage.param_index = (ushort)sendID;
+            sendMessage.param_count = (ushort)parameters.Count;
+            client.SendMessage(sendMessage);
+        }
+
+        private static uint GetUptime()
+        {
+            long timeMS = (DateTime.UtcNow.Ticks - startTime) / TimeSpan.TicksPerMillisecond;
+            return (uint)timeMS;
         }
     }
 }

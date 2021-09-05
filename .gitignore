@@ -4,3 +4,4 @@ obj
 bin
 External/Managed
 *.user
+packages

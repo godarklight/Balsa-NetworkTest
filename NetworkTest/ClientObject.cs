@@ -3,7 +3,6 @@ using System.Threading;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Net.Sockets;
-using NetworkTest.Messages;
 
 namespace NetworkTest
 {
@@ -11,22 +10,27 @@ namespace NetworkTest
     {
         private NetworkHandler networkHandler;
         private AutoResetEvent sendEvent;
-        private Func<ClientObject, MessageType, IMessage> requestMessage;
+        private Action<ClientObject, MAVLink.MAVLINK_MSG_ID> requestMessage;
         public Action<string> log;
 
         public TcpClient client;
         //Rates are stored in seconds
-        public ConcurrentDictionary<MessageType, float> requestedRates = new ConcurrentDictionary<MessageType, float>();
+        public ConcurrentDictionary<MAVLink.MAVLINK_MSG_ID, float> requestedRates = new ConcurrentDictionary<MAVLink.MAVLINK_MSG_ID, float>();
         //Send time stored in ticks
-        public ConcurrentDictionary<MessageType, long> nextSendTime = new ConcurrentDictionary<MessageType, long>();
-        public ConcurrentQueue<IMessage> outgoingMessages = new ConcurrentQueue<IMessage>();
+        public ConcurrentDictionary<MAVLink.MAVLINK_MSG_ID, long> nextSendTime = new ConcurrentDictionary<MAVLink.MAVLINK_MSG_ID, long>();
+        public ConcurrentQueue<byte[]> outgoingMessages = new ConcurrentQueue<byte[]>();
 
         public byte[] buffer = new byte[263];
         public bool readingHeader = true;
         public int readPos = 0;
         public int bytesLeft = 8;
 
-        public ClientObject(NetworkHandler networkHandler, AutoResetEvent sendEvent, Action<string> log, Func<ClientObject, MessageType, IMessage> requestMessage)
+        //Mavlink
+        private Dictionary<Type, MAVLink.MAVLINK_MSG_ID> mavTypes;
+        private MAVLink.MavlinkParse parser = new MAVLink.MavlinkParse();
+        private int sendSequence = 0;
+
+        public ClientObject(NetworkHandler networkHandler, AutoResetEvent sendEvent, Action<string> log, Action<ClientObject, MAVLink.MAVLINK_MSG_ID> requestMessage)
         {
             this.networkHandler = networkHandler;
             this.sendEvent = sendEvent;
@@ -37,7 +41,7 @@ namespace NetworkTest
         public void Update()
         {
             long currentTime = DateTime.UtcNow.Ticks;
-            foreach (KeyValuePair<MessageType, float> kvp in requestedRates)
+            foreach (KeyValuePair<MAVLink.MAVLINK_MSG_ID, float> kvp in requestedRates)
             {
                 bool sendType = false;
                 if (nextSendTime.TryGetValue(kvp.Key, out long nextTime))
@@ -55,19 +59,33 @@ namespace NetworkTest
                 }
                 if (sendType)
                 {
-                    IMessage requestedMessage = requestMessage(this, kvp.Key);
-                    if (requestedMessage != null)
-                    {
-                        SendMessage(requestedMessage);
-                    }
+                    requestMessage(this, kvp.Key);
                 }
             }
         }
 
-        public void SendMessage(IMessage message)
+        public void SendMessage(object message)
+        {
+            SendMessageBytes(parser.GenerateMAVLinkPacket10(GetTypeMapping(message), message, 1, 1, sendSequence++));
+        }
+
+        public void SendMessageBytes(byte[] message)
         {
             outgoingMessages.Enqueue(message);
             sendEvent.Set();
+        }
+
+        private MAVLink.MAVLINK_MSG_ID GetTypeMapping(object message)
+        {
+            if (mavTypes == null)
+            {
+                mavTypes = new Dictionary<Type, MAVLink.MAVLINK_MSG_ID>();
+                foreach (MAVLink.message_info mi in MAVLink.MAVLINK_MESSAGE_INFOS)
+                {
+                    mavTypes.Add(mi.type, (MAVLink.MAVLINK_MSG_ID)mi.msgid);
+                }
+            }
+            return mavTypes[message.GetType()];
         }
     }
 }

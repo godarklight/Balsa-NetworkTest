@@ -28,21 +28,22 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\packages\Newtonsoft.Json.12.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Runtime.CompilerServices.Unsafe">
+      <HintPath>..\packages\System.Runtime.CompilerServices.Unsafe.4.7.0\lib\netstandard2.0\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+    </Reference>
+    <Reference Include="MAVLink">
+      <HintPath>..\packages\MAVLink.1.0.7\lib\net461\MAVLink.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Messages\Heartbeat.cs" />
-    <Compile Include="IMessage.cs" />
-    <Compile Include="MessageType.cs" />
     <Compile Include="NetworkHandler.cs" />
-    <Compile Include="Messages\MessageAttribute.cs" />
     <Compile Include="ClientObject.cs" />
-    <Compile Include="Messages\Position.cs" />
-    <Compile Include="Messages\Attitude.cs" />
-    <Compile Include="Messages\SetRate.cs" />
-    <Compile Include="Messages\Ack.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="Messages\" />
+    <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
 </Project>
