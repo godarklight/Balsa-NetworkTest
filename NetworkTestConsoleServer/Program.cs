@@ -72,9 +72,13 @@ namespace NetworkTestConsoleServer
             handler.RegisterReceiveCommand(MAVLink.MAV_CMD.SET_MESSAGE_INTERVAL, MessageInterval);
             handler.RegisterSend(MAVLink.MAVLINK_MSG_ID.HEARTBEAT, SendHeartbeat);
             handler.RegisterSend(MAVLink.MAVLINK_MSG_ID.GLOBAL_POSITION_INT, SendPosition);
+            handler.RegisterSend(MAVLink.MAVLINK_MSG_ID.GPS_RAW_INT, SendGPSRaw);
             handler.RegisterSend(MAVLink.MAVLINK_MSG_ID.ATTITUDE, SendAttitude);
             handler.RegisterSend(MAVLink.MAVLINK_MSG_ID.RAW_IMU, SendRawIMU);
             handler.RegisterSend(MAVLink.MAVLINK_MSG_ID.GPS_STATUS, SendGPSStatus);
+            handler.RegisterSend(MAVLink.MAVLINK_MSG_ID.RADIO_STATUS, SendRadioStatus);
+            handler.RegisterSend(MAVLink.MAVLINK_MSG_ID.RC_CHANNELS_SCALED, SendRadioChannelsScaled);
+            handler.RegisterSend(MAVLink.MAVLINK_MSG_ID.RC_CHANNELS_RAW, SendRadioChannelsRaw);
             handler.StartServer(Console.WriteLine);
 
             bool running = true;
@@ -163,9 +167,11 @@ namespace NetworkTestConsoleServer
             switch ((MAVLink.MAV_DATA_STREAM)message.req_stream_id)
             {
                 case MAVLink.MAV_DATA_STREAM.ALL:
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.ATTITUDE] = 1f / message.req_message_rate;
                     client.requestedRates[MAVLink.MAVLINK_MSG_ID.RAW_IMU] = 1f / message.req_message_rate;
                     client.requestedRates[MAVLink.MAVLINK_MSG_ID.GPS_RAW_INT] = 1f / message.req_message_rate;
                     client.requestedRates[MAVLink.MAVLINK_MSG_ID.GPS_STATUS] = 1f / message.req_message_rate;
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.RADIO_STATUS] = 1f / message.req_message_rate;
                     client.requestedRates[MAVLink.MAVLINK_MSG_ID.RC_CHANNELS_SCALED] = 1f / message.req_message_rate;
                     client.requestedRates[MAVLink.MAVLINK_MSG_ID.RC_CHANNELS_RAW] = 1f / message.req_message_rate;
                     client.requestedRates[MAVLink.MAVLINK_MSG_ID.SERVO_OUTPUT_RAW] = 1f / message.req_message_rate;
@@ -173,12 +179,14 @@ namespace NetworkTestConsoleServer
                     client.requestedRates[MAVLink.MAVLINK_MSG_ID.LOCAL_POSITION_NED] = 1f / message.req_message_rate;
                     break;
                 case MAVLink.MAV_DATA_STREAM.RAW_SENSORS:
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.ATTITUDE] = 1f / message.req_message_rate;
                     client.requestedRates[MAVLink.MAVLINK_MSG_ID.RAW_IMU] = 1f / message.req_message_rate;
                     client.requestedRates[MAVLink.MAVLINK_MSG_ID.GPS_RAW_INT] = 1f / message.req_message_rate;
                     client.requestedRates[MAVLink.MAVLINK_MSG_ID.GPS_STATUS] = 1f / message.req_message_rate;
                     break;
                 case MAVLink.MAV_DATA_STREAM.EXTENDED_STATUS:
                     client.requestedRates[MAVLink.MAVLINK_MSG_ID.GPS_STATUS] = 1f / message.req_message_rate;
+                    client.requestedRates[MAVLink.MAVLINK_MSG_ID.RADIO_STATUS] = 1f / message.req_message_rate;
                     //Can't find CONTROL_STATUS or AUX_STATUS
                     break;
                 case MAVLink.MAV_DATA_STREAM.RC_CHANNELS:
@@ -287,11 +295,31 @@ namespace NetworkTestConsoleServer
             message.lon = longitude;
             message.alt = altitude;
             message.relative_alt = altitude;
-            message.hdg = 0;
+            message.hdg = 33;
             message.vx = 0;
             message.vy = 0;
             message.vz = 0;
             message.time_boot_ms = GetUptime();
+            client.SendMessage(message);
+        }
+
+        private static void SendGPSRaw(ClientObject client)
+        {
+            MAVLink.mavlink_gps_raw_int_t message = new MAVLink.mavlink_gps_raw_int_t();
+            message.lat = latitude;
+            message.lon = longitude;
+            message.alt = altitude;
+            message.eph = 300;
+            message.epv = 500;
+            message.vel = 1000;
+            message.cog = 25000;
+            message.satellites_visible = 10;
+            message.alt_ellipsoid = altitude;
+            message.h_acc = 10;
+            message.v_acc = 10;
+            message.vel_acc = 10;
+            message.hdg_acc = 10;
+            message.yaw = (ushort)yaw;
             client.SendMessage(message);
         }
 
@@ -340,6 +368,47 @@ namespace NetworkTestConsoleServer
             message.satellite_elevation = ele;
             message.satellite_azimuth = azi;
             message.satellite_snr = snr;
+            client.SendMessage(message);
+        }
+
+        private static void SendRadioStatus(ClientObject client)
+        {
+            MAVLink.mavlink_radio_status_t message = new MAVLink.mavlink_radio_status_t();
+            message.rssi = 200;
+            message.remrssi = 200;
+            message.txbuf = 99;
+            message.rxerrors = 0;
+            message.@fixed = 0;
+            client.SendMessage(message);
+        }
+
+        private static void SendRadioChannelsRaw(ClientObject client)
+        {
+            MAVLink.mavlink_rc_channels_t message = new MAVLink.mavlink_rc_channels_t();
+            message.rssi = 200;
+            message.chan1_raw = 1500;
+            message.chan2_raw = 1500;
+            message.chan3_raw = 1500;
+            message.chan4_raw = 1500;
+            message.chan5_raw = 1500;
+            message.chan6_raw = 1500;
+            message.chan7_raw = 1500;
+            message.chan8_raw = 1500;
+            client.SendMessage(message);
+        }
+
+        private static void SendRadioChannelsScaled(ClientObject client)
+        {
+            MAVLink.mavlink_rc_channels_scaled_t message = new MAVLink.mavlink_rc_channels_scaled_t();
+            message.rssi = 200;
+            message.chan1_scaled = 5000;
+            message.chan2_scaled = 5000;
+            message.chan3_scaled = 5000;
+            message.chan4_scaled = 5000;
+            message.chan5_scaled = 5000;
+            message.chan6_scaled = 5000;
+            message.chan7_scaled = 5000;
+            message.chan8_scaled = 5000;
             client.SendMessage(message);
         }
 
